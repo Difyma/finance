@@ -1,0 +1,21 @@
+{
+  "name": "fin-pers-analitic",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}
