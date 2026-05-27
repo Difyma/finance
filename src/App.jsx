@@ -4,6 +4,38 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 const STORAGE_KEY = "finance_app_data";
 const API_URL = "/api/finance-data";
+const AUTH_URL = "/api/auth";
+
+async function getAuthStatus() {
+  try {
+    const response = await fetch(AUTH_URL);
+    if (response.status === 503) return { authed: true, local: true };
+    if (!response.ok) return { authed: false };
+    return await response.json();
+  } catch {
+    return { authed: true, local: true };
+  }
+}
+
+async function loginWithPassword(password) {
+  const response = await fetch(AUTH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+
+  if (!response.ok) {
+    throw new Error(response.status === 503 ? "AUTH_NOT_CONFIGURED" : "INVALID_PASSWORD");
+  }
+}
+
+async function logoutSession() {
+  try {
+    await fetch(AUTH_URL, { method: "DELETE" });
+  } catch {
+    // Local Vite dev has no auth API.
+  }
+}
 
 async function loadData() {
   try {
@@ -668,6 +700,50 @@ function CheckBox({ checked, onChange }) {
   return (
     <div className={`check-box ${checked ? "checked" : ""}`} onClick={onChange} role="checkbox" aria-checked={checked}>
       {checked && <span className="check-tick">✓</span>}
+    </div>
+  );
+}
+
+// ─── Auth Screen ──────────────────────────────────────────────────────────────
+function AuthScreen({ onLogin }) {
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const login = async () => {
+    setSubmitting(true);
+    setErr("");
+
+    try {
+      await loginWithPassword(pass);
+      onLogin();
+    } catch {
+      setErr("Неверный пароль");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-logo">Finance<span>.</span></div>
+        <div className="auth-sub">Личный финансовый трекер</div>
+        <label className="auth-label">Пароль для входа</label>
+        <input
+          className="auth-input"
+          type="password"
+          placeholder="••••••••••"
+          value={pass}
+          onChange={e => setPass(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && login()}
+          autoFocus
+        />
+        {err && <div className="auth-err">{err}</div>}
+        <button className="auth-btn" onClick={login} disabled={submitting}>
+          {submitting ? "Проверка..." : "Войти"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1645,6 +1721,7 @@ const NAV = [
 ];
 
 export default function App() {
+  const [authed, setAuthed] = useState(false);
   const [page,   setPage]   = useState("summary");
   const [data,   setData]   = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1655,10 +1732,18 @@ export default function App() {
   const monthKey = mkKey(selYear, selMonth);
 
   useEffect(() => {
-    loadData().then(d => {
-      if (d) setData(normalizeData(d));
-      else setData({ months: {}, loans: [] });
-      setLoading(false);
+    getAuthStatus().then(status => {
+      if (!status.authed) {
+        setLoading(false);
+        return;
+      }
+
+      setAuthed(true);
+      loadData().then(d => {
+        if (d) setData(normalizeData(d));
+        else setData({ months: {}, loans: [] });
+        setLoading(false);
+      });
     });
   }, []);
 
@@ -1682,6 +1767,23 @@ export default function App() {
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0f1e", color: "#64748b", fontFamily: "'DM Sans',sans-serif" }}>
       Загрузка...
     </div>
+  );
+
+  if (!authed) return (
+    <>
+      <style>{CSS}</style>
+      <AuthScreen
+        onLogin={() => {
+          setAuthed(true);
+          setLoading(true);
+          loadData().then(d => {
+            if (d) setData(normalizeData(d));
+            else setData({ months: {}, loans: [] });
+            setLoading(false);
+          });
+        }}
+      />
+    </>
   );
 
   const monthOpts = [];
@@ -1712,10 +1814,16 @@ export default function App() {
                   const [y, m] = e.target.value.split("-");
                   setSelYear(+y); setSelMonth(+m);
                 }}>
-                {monthOpts.map(o => (
+              {monthOpts.map(o => (
                   <option key={`${o.y}-${o.m}`} value={`${o.y}-${o.m}`}>{o.label}</option>
                 ))}
               </select>
+              <button className="logout-btn" onClick={() => {
+                logoutSession().finally(() => {
+                  setAuthed(false);
+                  setData(null);
+                });
+              }}>Выйти</button>
             </div>
           </aside>
 
@@ -1728,10 +1836,16 @@ export default function App() {
                     const [y, m] = e.target.value.split("-");
                     setSelYear(+y); setSelMonth(+m);
                   }}>
-                  {monthOpts.map(o => (
+                {monthOpts.map(o => (
                     <option key={`${o.y}-${o.m}`} value={`${o.y}-${o.m}`}>{o.label}</option>
                   ))}
                 </select>
+                <button className="logout-btn" style={{ width: "auto", marginTop: 8 }} onClick={() => {
+                  logoutSession().finally(() => {
+                    setAuthed(false);
+                    setData(null);
+                  });
+                }}>Выйти</button>
               </div>
             </div>
             {page === "summary"    && <SummaryPage    monthData={monthData} updateMonth={updateMonth} periodLabel={selectedPeriodLabel} />}

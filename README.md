@@ -29,7 +29,7 @@ npm run build
 3. Vercel Authentication
 4. Protection level: All Deployments
 
-В приложении нет frontend-пароля. Приватный доступ должен быть включен на уровне Vercel Deployment Protection.
+В приложении есть server-side авторизация через httpOnly cookie. Пароль хранится только в переменных окружения Vercel и не попадает в frontend bundle.
 
 ## Backend-хранилище на Vercel
 
@@ -39,6 +39,9 @@ npm run build
 4. Убедитесь, что Vercel добавил переменные окружения:
    - `UPSTASH_REDIS_REST_URL`
    - `UPSTASH_REDIS_REST_TOKEN`
-5. Redeploy проекта после добавления переменных.
+5. Добавьте переменные авторизации:
+   - `APP_PASSWORD` — пароль для входа в приложение
+   - `AUTH_SECRET` — длинная случайная строка для подписи cookie
+6. Redeploy проекта после добавления переменных.
 
 API `/api/finance-data` читает и сохраняет весь финансовый JSON на backend. Так данные будут доступны с разных устройств после входа в защищенный Vercel deployment.
