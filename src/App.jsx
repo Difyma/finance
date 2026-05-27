@@ -6,14 +6,17 @@ const STORAGE_KEY = "finance_app_data";
 const API_URL = "/api/finance-data";
 const AUTH_URL = "/api/auth";
 
+function isLocalDev() {
+  return ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+}
+
 async function getAuthStatus() {
   try {
     const response = await fetch(AUTH_URL);
-    if (response.status === 503) return { authed: true, local: true };
     if (!response.ok) return { authed: false };
     return await response.json();
   } catch {
-    return { authed: true, local: true };
+    return isLocalDev() ? { authed: true, local: true } : { authed: false };
   }
 }
 
@@ -45,6 +48,8 @@ async function loadData() {
     // Local Vite dev does not serve Vercel Functions; fall back to browser storage.
   }
 
+  if (!isLocalDev()) return null;
+
   try {
     if (window.storage?.get) {
       const result = await window.storage.get(STORAGE_KEY);
@@ -69,6 +74,8 @@ async function saveData(data) {
   } catch {
     // Local Vite dev does not serve Vercel Functions; fall back to browser storage.
   }
+
+  if (!isLocalDev()) return;
 
   try {
     const value = JSON.stringify(data);
@@ -717,8 +724,10 @@ function AuthScreen({ onLogin }) {
     try {
       await loginWithPassword(pass);
       onLogin();
-    } catch {
-      setErr("Неверный пароль");
+    } catch (error) {
+      setErr(error.message === "AUTH_NOT_CONFIGURED"
+        ? "Авторизация не настроена на сервере"
+        : "Неверный пароль");
     } finally {
       setSubmitting(false);
     }
